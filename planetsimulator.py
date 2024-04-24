@@ -1,122 +1,114 @@
 import plotly.graph_objs as go
 import numpy as np
 
-# Definition af klasser og funktioner
 
-class Planet:
+class Vector3D:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+
+
+class CelestialBody:
+    def __init__(self, mass, position):
+        self.mass = mass
+        self.position = position
+
+
+class Planet(CelestialBody):
     def __init__(self, name, mass, distance_from_sun):
+        super().__init__(mass, Vector3D(0, distance_from_sun, 0))
         self.name = name
-        self.mass = mass
-        self.distance_from_sun = distance_from_sun
-        self.position = 0  # Start position
-        self.velocity = 0  # Start velocity
 
-    def update_position_and_velocity(self, force, delta_t):
-        acceleration = force / self.mass
-        self.velocity += acceleration * delta_t
-        self.position += self.velocity * delta_t
+    def calculate_orbit(self, num_points=100):
+        theta = np.linspace(0, 2 * np.pi, num_points)
+        orbit_x = np.cos(theta) * self.position.y
+        orbit_y = np.sin(theta) * self.position.y
+        orbit_z = np.zeros(num_points)
+        return orbit_x, orbit_y, orbit_z
 
 
-class Sun:
+class Sun(CelestialBody):
     def __init__(self, mass):
-        self.mass = mass
+        super().__init__(mass, Vector3D(0, 0, 0))
 
 
-def calculate_gravitational_force(planet, sun):
-    gravitational_constant = 6.67430e-11
-    distance = planet.distance_from_sun
-    force = gravitational_constant * (sun.mass * planet.mass) / distance ** 2
-    return force
-
-
-def get_color_scale(num_planets):
-    colors = []
-    for i in range(num_planets):
-        colors.append("hsl(" + str(int(360 * i / num_planets)) + ",50%,50%)")
-    return colors
-
-
+# Funktion til at simulere og visualisere solsystemet
 def simulate_and_visualize(sun, planets, num_iterations, delta_t):
-    # Initialize lists to store planet positions for each iteration
-    planet_positions = [[] for _ in range(len(planets))]
+    # Opret figurobjekt
+    fig = go.Figure()
 
-    # Simulation loop
-    for i in range(num_iterations):
-        for j, planet in enumerate(planets):
-            # Calculate the gravitational force from the Sun on each planet
-            force = calculate_gravitational_force(planet, sun)
+    # Tilføj Solen til figuren
+    fig.add_trace(go.Scatter3d(
+        x=[sun.position.x],
+        y=[sun.position.y],
+        z=[sun.position.z],
+        mode='markers',
+        marker=dict(
+            size=10,
+            color='yellow'
+        ),
+        name='Sun'
+    ))
 
-            # Update the planet's position and velocity
-            planet.update_position_and_velocity(force, delta_t)
+    # Tilføj planeter til figuren som punkter
+    for planet in planets:
+        # Beregn planetens bane
+        orbit_x, orbit_y, orbit_z = planet.calculate_orbit(num_points=100)
 
-            # Store the planet's position for this iteration
-            planet_positions[j].append(planet.position)
-
-    # Create frames for the animation
-    frames = []
-    for i in range(num_iterations):
-        frame_data = []
-        for j, planet in enumerate(planets):
-            frame_data.append(go.Scatter(x=[planet_positions[j][i]], y=[0], mode='markers', name=planet.name,
-                                         marker=dict(color=get_color_scale(len(planets))[j]),
-                                         hovertext=planet.name))
-        frames.append({'data': frame_data, 'name': f'Frame {i}', 'layout': go.Layout(
-            title='Solar System Simulation Animation',
-            xaxis=dict(title='Distance from Sun (m)'),
-            yaxis=dict(title='Y-axis'),
-            template='plotly_dark'
-        )})
-
-    # Create the animation
-    animation = go.Figure(frames=frames)
-
-    # Add circles representing planet orbits
-    for j, planet in enumerate(planets):
-        orbit_x = []
-        orbit_y = []
-        for theta in np.linspace(0, 2 * np.pi, 100):
-            orbit_x.append(planet.distance_from_sun * np.cos(theta))
-            orbit_y.append(planet.distance_from_sun * np.sin(theta))
-        animation.add_trace(go.Scatter(x=orbit_x, y=orbit_y, mode='lines',
-                                       name=planet.name,
-                                       line=dict(color=get_color_scale(len(planets))[j]),
-                                       showlegend=False,
-                                       hovertext=planet.name))
-
-    # Add 3D models of planets at some position on their orbits
-    for j, planet in enumerate(planets):
-        model_trace = go.Scatter3d(
-            x=[orbit_x[j]],
-            y=[orbit_y[j]],
-            z=[0],  # Just for visualization, the Z-coordinate can be adjusted as needed
-            mode='markers',  # Use mode 'markers' for 3D models
-            marker=dict(
-                size=10,  # Adjust size as needed
-                color=get_color_scale(len(planets))[j],  # Adjust color as needed
-                opacity=1,
-                symbol=f"https://raw.githubusercontent.com/plotly/models/master/planets/{planet.name.lower()}.glb",  # 3D model URL
+        # Tilføj planetens bane til figuren
+        fig.add_trace(go.Scatter3d(
+            x=orbit_x,
+            y=orbit_y,
+            z=orbit_z,
+            mode='lines',
+            line=dict(
+                color='blue',
+                width=1
             ),
-            name=planet.name + " Model"
+            name=f'{planet.name} Orbit'
+        ))
+
+        # Tilføj planeten som et punkt
+        fig.add_trace(go.Scatter3d(
+            x=[planet.position.x],
+            y=[planet.position.y],
+            z=[planet.position.z],
+            mode='markers',
+            marker=dict(
+                size=5,
+                color='red',
+            ),
+            name=planet.name
+        ))
+
+    # Indstil layout for figuren
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(title='X'),
+            yaxis=dict(title='Y'),
+            zaxis=dict(title='Z'),
         )
-        animation.add_trace(model_trace)
+    )
 
-    # Show animation
-    animation.show()
+    # Vis figuren
+    fig.show()
 
 
+# Main-funktionen
 def main():
-    # Create instances of planets and the Sun
-    sun = Sun(mass=1.989e30)  # Suns mass in kg
-    mercury = Planet(name="Mercury", mass=3.285e23, distance_from_sun=57.9e9)  # Mercury
+    # Opret instanser af planeter og Solen
+    sun = Sun(mass=1.989e30)  # Solens masse i kg
+    mercury = Planet(name="Mercury", mass=3.285e23, distance_from_sun=57.9e9)  # Merkur
     venus = Planet(name="Venus", mass=4.867e24, distance_from_sun=108.2e9)  # Venus
-    earth = Planet(name="Earth", mass=5.972e24, distance_from_sun=149.6e9)  # Earth
+    earth = Planet(name="Earth", mass=5.972e24, distance_from_sun=149.6e9)  # Jorden
     mars = Planet(name="Mars", mass=6.39e23, distance_from_sun=227.9e9)  # Mars
     jupiter = Planet(name="Jupiter", mass=1.898e27, distance_from_sun=778.5e9)  # Jupiter
     saturn = Planet(name="Saturn", mass=5.683e26, distance_from_sun=1.434e12)  # Saturn
     uranus = Planet(name="Uranus", mass=8.681e25, distance_from_sun=2.871e12)  # Uranus
-    neptune = Planet(name="Neptune", mass=1.024e26, distance_from_sun=4.495e12)  # Neptune
+    neptune = Planet(name="Neptune", mass=1.024e26, distance_from_sun=4.495e12)  # Neptun
 
-    # Simulate and visualize the solar system
+    # Simulér og visualisér solsystemet
     num_iterations = 365
     delta_t = 86400
     simulate_and_visualize(sun, [mercury, venus, earth, mars, jupiter, saturn, uranus, neptune], num_iterations, delta_t)
